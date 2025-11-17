@@ -1,11 +1,16 @@
-FROM php:7.4-apache
+FROM php:5.6-apache
 
 MAINTAINER Braydon Justice <braydon.justice@1268456bcltd.ca>
+
+# Fix Debian Stretch repositories (moved to archive)
+RUN sed -i 's/deb.debian.org/archive.debian.org/g' /etc/apt/sources.list \
+    && sed -i 's|security.debian.org|archive.debian.org|g' /etc/apt/sources.list \
+    && sed -i '/stretch-updates/d' /etc/apt/sources.list
 
 RUN a2enmod rewrite
 
 ENV DEBIAN_FRONTEND noninteractive
-RUN apt-get -qq update && apt-get -qq -y upgrade
+RUN apt-get -qq update && apt-get -qq -y --allow-unauthenticated upgrade
 RUN apt-get -qq update && apt-get -qq -y --no-install-recommends install \
     unzip \
     libfreetype6-dev \
@@ -21,15 +26,13 @@ RUN apt-get -qq update && apt-get -qq -y --no-install-recommends install \
     vim \
     wget
 
-# Install the PHP extensions
-RUN docker-php-ext-configure gd --with-freetype=/usr/include/ --with-jpeg=/usr/include/
-RUN docker-php-ext-install -j$(nproc) iconv pdo pdo_mysql mysqli gd exif
-RUN pecl install mcrypt-1.0.7 \
-&&  docker-php-ext-enable mcrypt \
-&& pecl install imagick \
+# Install the PHP extensions for PHP 5.6
+# Note: mcrypt is built-in for PHP 5.6, different gd configuration syntax
+RUN docker-php-ext-configure gd --with-freetype-dir=/usr/include/ --with-jpeg-dir=/usr/include/
+RUN docker-php-ext-install -j$(nproc) iconv pdo pdo_mysql mysqli gd exif mcrypt
+RUN pecl install imagick \
 && docker-php-ext-enable imagick
 
-# COPY ./omeka-$version.zip /var/www/
 # Install Ghostscript
 RUN mkdir -p /installs
 ADD https://github.com/ArtifexSoftware/ghostpdl-downloads/releases/download/gs926/ghostscript-9.26-linux-x86_64.tgz /installs/
@@ -44,10 +47,10 @@ RUN apt-get -y install autoconf autogen
 RUN cd /installs/ghostpdl-9.26 && ./autogen.sh && ./configure && make -j 5 && make install
 
 
-ARG version="3.1.2"
+ARG version="2.2.2"
 ENV version $version
 
-# Add the Omeka Classic code
+# Add the Omeka Classic 2.2.2 code
 ADD https://github.com/omeka/Omeka/releases/download/v$version/omeka-$version.zip /installs/
 RUN unzip -q /installs/omeka-$version.zip -d /var/www/ \
 &&  rm /installs/omeka-$version.zip \
@@ -64,6 +67,11 @@ RUN unzip -q /installs/omeka-$version.zip -d /var/www/ \
 &&  rm /usr/local/etc/php/php.ini-production
 
 COPY php.ini-production /usr/local/etc/php/php.ini-production
+
+# Add in a fix for assets being sent insecurely on old versions
+COPY https-fix.txt /tmp
+RUN sed -i '1r /tmp/https-fix.txt' /var/www/html/bootstrap.php && \
+    rm /tmp/https-fix.txt
 
 # Create one volume for files and set permissions
 RUN rm -rf /var/www/html/files/ \

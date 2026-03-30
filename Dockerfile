@@ -84,13 +84,14 @@ RUN apt-get -qq update && \
         libjpeg62-turbo-dev \
         libmcrypt-dev \
         libpng-dev \
+        libonig-dev \
         libmagickwand-dev && \
     if [ "${PHP_VERSION}" = "5.6" ]; then \
         docker-php-ext-configure gd --with-freetype-dir=/usr/include/ --with-jpeg-dir=/usr/include/ && \
-        docker-php-ext-install -j$(nproc) iconv pdo pdo_mysql mysqli gd exif mcrypt; \
+        docker-php-ext-install -j$(nproc) iconv pdo pdo_mysql mysqli gd mbstring exif mcrypt; \
     else \
         docker-php-ext-configure gd --with-freetype=/usr/include/ --with-jpeg=/usr/include/ && \
-        docker-php-ext-install -j$(nproc) iconv pdo pdo_mysql mysqli gd exif && \
+        docker-php-ext-install -j$(nproc) iconv pdo pdo_mysql mysqli gd mbstring exif && \
         pecl install mcrypt-1.0.7 && \
         docker-php-ext-enable mcrypt; \
     fi && \
